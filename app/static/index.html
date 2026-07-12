@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="cs">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VIAGEM Analýza parcel</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="topbar glass">
+        <div class="brand-block">
+          <p class="eyebrow">VIAGEM Analýza parcel</p>
+          <h1 data-help="Hlavní pracovní plocha pro porovnání katastrálních údajů s ortofotem, CPX geometrií a závěrem analytika.">Okres Jičín: katastr proti realitě</h1>
+          <p class="topbar-subtitle">Pracovní přehled parcel, důkazních vrstev, závěrů a podpůrného modelu.</p>
+          <span class="local-badge">Lokální data · 5 posuzovaných parcel</span>
+        </div>
+        <nav class="module-nav" aria-label="Moduly aplikace">
+          <a href="#detailModule" data-icon="file" title="Základní údaje a důkazní snímky vybrané parcely">Detail</a>
+          <a href="#mapModule" data-icon="map" title="Orientační poloha a seznam importovaných parcel">Mapa</a>
+          <a href="#analysisModule" data-icon="chart" title="Ruční posouzení souladu katastru s viditelným stavem">Analytika</a>
+          <a href="#adminModule" data-icon="clipboard" title="Editace závěru, rizika a indikátorů analytikem">Analytik</a>
+          <a href="#mlModule" data-icon="brain" title="Podpůrný model PyTorch a správa trénovacích vzorků">PyTorch</a>
+          <a href="#methodModule" data-icon="route" title="Zdroje, omezení a doporučený postup">Metodika</a>
+        </nav>
+        <div class="stat-strip" id="stats"></div>
+      </section>
+
+      <section class="workspace">
+        <aside class="parcel-rail glass">
+          <div class="rail-head">
+            <h2 data-icon="list" data-help="Seznam posuzovaných parcel. Výběr řídí detail, mapu, indikátory i panel analytika.">Parcely</h2>
+            <label class="risk-toggle" title="Zobrazit pouze parcely se středním nebo vysokým rizikem">
+              <input id="riskOnly" type="checkbox" />
+              <span>Rizikové</span>
+            </label>
+          </div>
+          <p class="section-description">Vyhledejte parcelu nebo zúžte seznam podle rizika a výsledku kontroly.</p>
+          <label class="search-box">
+            <span>Hledat</span>
+            <input id="parcelSearch" type="search" placeholder="Parcela, obec, druh..." title="Hledá v identifikaci, obci, druhu, závěru a riziku" />
+          </label>
+          <div class="segmented" id="verdictFilter" aria-label="Filtr závěru">
+            <button class="active" type="button" data-filter="all" title="Zobrazit všechny parcely">Vše</button>
+            <button type="button" data-filter="match" title="Zobrazit pouze plnou shodu">Sedí</button>
+            <button type="button" data-filter="review" title="Zobrazit parcely vyžadující kontrolu">Kontrola</button>
+          </div>
+          <div class="parcel-list" id="parcelList"></div>
+        </aside>
+
+        <section class="detail-pane glass" id="detailModule">
+          <div class="detail-header">
+            <div>
+              <p class="eyebrow" id="detailCode"></p>
+              <h2 id="detailTitle" data-help="Identifikace aktivní parcely. Změna výběru aktualizuje všechny navazující komponenty."></h2>
+              <p class="detail-meta" id="detailMeta"></p>
+            </div>
+            <div class="detail-actions">
+              <button id="prevParcel" type="button" aria-label="Předchozí parcela" title="Předchozí parcela v aktuálně filtrovaném seznamu">‹</button>
+              <div class="verdict-pill" id="detailVerdict"></div>
+              <button id="nextParcel" type="button" aria-label="Další parcela" title="Další parcela v aktuálně filtrovaném seznamu">›</button>
+            </div>
+          </div>
+
+          <div class="metric-grid" id="metrics"></div>
+
+          <section class="map-panel" id="mapModule">
+            <div class="map-copy">
+              <p class="eyebrow">OpenStreetMap kontext</p>
+              <h2 data-icon="map" data-help="OpenStreetMap poskytuje pouze orientační polohu; důkaz tvoří CPX, ortofoto a katastrální mapa.">Mapa parcely</h2>
+              <p id="mapSummary"></p>
+              <a id="osmLink" target="_blank" rel="noreferrer">Otevřít v OpenStreetMap</a>
+            </div>
+            <iframe id="osmMap" title="OpenStreetMap kontext parcely" loading="lazy"></iframe>
+          </section>
+
+          <section class="parcel-map-list">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Mapová stránka</p>
+                <h2 data-icon="layers" data-help="Rychlý výběr parcel, které odpovídají právě aktivním filtrům.">Importované parcely a vrstvy</h2>
+                <p class="section-description">Kliknutím na kartu změníte aktivní parcelu ve všech panelech.</p>
+              </div>
+            </div>
+            <div class="map-card-grid" id="parcelMapList"></div>
+          </section>
+
+          <div class="image-toolbar">
+            <div class="image-tabs" aria-label="Důkazní vrstva">
+              <button class="active" type="button" data-image="ortho" title="Letecký snímek ČÚZK s referenčním bodem">Ortofoto</button>
+              <button type="button" data-image="overlay" title="Ortofoto s hranicí parcely z CPX">Hranice</button>
+              <button type="button" data-image="kn" title="Katastrální mapa ČÚZK">KN</button>
+            </div>
+            <a id="evidenceLink" target="_blank" rel="noreferrer">Otevřít obrázek</a>
+          </div>
+          <figure class="evidence-frame">
+            <img id="evidenceImage" src="/media/evidence/A_669296-653-22_ortho.png" alt="Důkazní ortofoto parcely A v katastrálním území Kopidlno" />
+            <figcaption id="imageCaption"></figcaption>
+          </figure>
+        </section>
+
+        <section class="filter-empty glass" id="filterEmpty" hidden>
+          <h2 data-icon="search" data-help="Filtry právě nevracejí žádnou parcelu.">Žádná odpovídající parcela</h2>
+          <p>Upravte hledaný text nebo vypněte některý filtr. Detail zůstává skrytý, aby nezobrazoval neodpovídající záznam.</p>
+        </section>
+
+        <aside class="analysis-pane" id="analysisPane">
+          <section class="portfolio-overview glass" id="portfolioOverview">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Přehled portfolia</p>
+                <h2 data-icon="chart" data-help="Souhrn druhů pozemků, výsledků ručního posouzení a jistoty napříč pěti parcelami.">Rozložení parcel a kontrol</h2>
+                <p class="section-description">Přehled portfolia vychází z aktuálních hodnot uložených v databázi.</p>
+              </div>
+            </div>
+            <div class="portfolio-grid" id="portfolioChart"></div>
+          </section>
+
+          <section class="analysis-block glass" id="analysisModule">
+            <h2 data-icon="clipboard" data-help="Srovnání oficiálního katastrálního stavu s ručně interpretovaným stavem na ortofotu.">Posouzení</h2>
+            <p class="section-description">Závěr analytika propojuje katastr, viditelnou realitu, podpůrnou predikci a doporučený další krok.</p>
+            <div class="comparison-grid">
+              <article>
+                <span>Katastr</span>
+                <strong id="officialSummary"></strong>
+              </article>
+              <article>
+                <span>Realita</span>
+                <strong id="observedSummary"></strong>
+              </article>
+            </div>
+            <div class="evidence-flow" id="evidenceFlow"></div>
+            <dl>
+              <dt>Oficiální stav</dt>
+              <dd id="officialState"></dd>
+              <dt>Realita z ortofota</dt>
+              <dd id="observedState"></dd>
+              <dt>Závěr analytika</dt>
+              <dd id="finding"></dd>
+              <dt>Další krok</dt>
+              <dd id="nextAction"></dd>
+            </dl>
+          </section>
+
+          <section class="analysis-block glass">
+            <h2 data-icon="gauge" data-help="Textové indikátory shrnují dostupná fakta a omezení bez vymyšlených číselných skóre.">Indikátory</h2>
+            <p class="section-description">Hodnoty lze upravit v panelu Analytik; katastrální druh a zdrojová data zůstávají neměnné.</p>
+            <dl id="indicatorList"></dl>
+          </section>
+
+          <section class="analysis-block glass" id="adminModule">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Odpovědnost analytika</p>
+                <h2 data-icon="clipboard" data-help="Jediné místo pro úpravu ručního závěru a jeho podpůrných indikátorů v databázi.">Editace analytického závěru</h2>
+                <p class="section-description">Upravujte pouze závěr odvozený z důkazů. Oficiální CPX atributy se v tomto panelu nemění.</p>
+              </div>
+            </div>
+            <form class="assessment-form" id="assessmentForm">
+              <div class="assessment-summary-fields">
+                <label>
+                  Úroveň závěru
+                  <select id="assessmentVerdict" required title="Určuje text závěru a stav parcely v přehledech">
+                    <option value="match">Odpovídá</option>
+                    <option value="partial">Částečně odpovídá</option>
+                    <option value="mostly">Převážně odpovídá</option>
+                    <option value="mismatch">Pravděpodobný nesoulad</option>
+                    <option value="unknown">Nelze potvrdit</option>
+                  </select>
+                </label>
+                <label>
+                  Jistota v %
+                  <input id="assessmentConfidence" type="number" min="0" max="100" step="1" required title="Míra jistoty ručního závěru od 0 do 100 %" />
+                </label>
+                <label>
+                  Riziko
+                  <select id="assessmentRisk" required title="Priorita navazující ruční nebo právní kontroly">
+                    <option value="Nízké">Nízké</option>
+                    <option value="Střední">Střední</option>
+                    <option value="Vysoké">Vysoké</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                Realita z ortofota
+                <textarea id="assessmentObserved" rows="3" required title="Popis viditelného stavu v hranici parcely"></textarea>
+              </label>
+              <label>
+                Závěr analytika
+                <textarea id="assessmentFinding" rows="4" required title="Odůvodněný závěr založený na zobrazených důkazech"></textarea>
+              </label>
+              <label>
+                Další krok
+                <textarea id="assessmentAction" rows="3" required title="Konkrétní doporučení pro navazující kontrolu nebo rozhodnutí"></textarea>
+              </label>
+              <label>
+                Přístupnost
+                <textarea id="assessmentAccessibility" rows="3" required title="Omezení přístupu, cest a práv, která je nutné ověřit"></textarea>
+              </label>
+              <label>
+                Environmentální a provozní limity
+                <textarea id="assessmentEnvironment" rows="3" required title="Známé limity a vrstvy, které v lokálních datech chybějí"></textarea>
+              </label>
+              <label>
+                Geometrie a plocha
+                <textarea id="assessmentGeometry" rows="3" required title="Interpretace úplnosti hranice a prostorového rozsahu parcely"></textarea>
+              </label>
+              <button class="save-assessment-button" type="submit">Uložit závěr analytika</button>
+              <p class="train-status" id="assessmentStatus" role="status" aria-live="polite"></p>
+            </form>
+          </section>
+
+          <section class="analysis-block glass" id="mlModule">
+            <div class="ml-head">
+              <div>
+                <p class="eyebrow">Podpůrný model</p>
+                <h2 data-icon="brain" data-help="Podpůrný tabulkový model nad atributy ATOM/CPX. Predikce nenahrazuje rozhodnutí analytika.">PyTorch ML</h2>
+              </div>
+              <span id="mlBadge"></span>
+            </div>
+            <p class="ml-note" id="mlNote"></p>
+            <dl>
+              <dt>Predikce modelu</dt>
+              <dd id="mlPrediction"></dd>
+              <dt>Jistota / entropie</dt>
+              <dd id="mlConfidence"></dd>
+              <dt>Interpretace</dt>
+              <dd id="mlExplanation"></dd>
+            </dl>
+            <div class="ml-run-grid" id="mlRunGrid"></div>
+            <div class="ml-probabilities" id="mlProbabilities"></div>
+            <div class="ml-table-wrap">
+              <table class="ml-table">
+                <thead>
+                  <tr>
+                    <th>Parcela</th>
+                    <th>Predikce</th>
+                    <th>Jistota</th>
+                    <th>Entropie</th>
+                    <th>Stav</th>
+                  </tr>
+                </thead>
+                <tbody id="mlPredictionTable"></tbody>
+              </table>
+            </div>
+            <pre class="ml-command" id="mlCommand"></pre>
+            <div class="ml-params" id="mlParams"></div>
+            <section class="training-manager">
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Správa dat</p>
+                  <h3 data-icon="database" data-help="Správa volitelných ručních vzorků a spuštění nového trénovacího běhu.">Trénovací vzorky</h3>
+                  <p class="section-description">Změna vzorků se do predikcí promítne až po opětovném spuštění trénování.</p>
+                </div>
+              <button class="train-button" id="trainModelButton" type="button" title="Spustí 120 epoch nad aktuální základní a ruční trénovací sadou">Spustit trénování</button>
+              </div>
+              <form class="sample-form" id="sampleForm">
+                <label>
+                  Zdroj
+                  <select id="sampleSource">
+                    <option value="parcela">Analytická parcela</option>
+                    <option value="atom">ATOM vzorek ČÚZK</option>
+                  </select>
+                </label>
+                <label>
+                  Parcela / vzorek
+                  <select id="sampleCase"></select>
+                </label>
+                <label>
+                  Štítek
+                  <select id="sampleLandType"></select>
+                </label>
+                <label>
+                  Poznámka
+                  <input id="sampleNote" type="text" maxlength="180" placeholder="Důvod doplnění vzorku" />
+                </label>
+                <button type="submit">Přidat vzorek</button>
+              </form>
+              <div class="atom-sample-summary" id="atomSampleSummary"></div>
+              <p class="train-status" id="trainStatus"></p>
+              <div class="sample-list" id="sampleList"></div>
+            </section>
+          </section>
+
+          <section class="analysis-block glass" id="methodModule">
+            <h2 data-icon="route" data-help="Metodické poznámky vysvětlují použité zdroje, datové mezery a doporučené škálování.">Metodika</h2>
+            <p class="section-description">Přepínejte mezi zdroji, omezeními a návrhem provozního rozšíření.</p>
+            <div class="method-tabs">
+              <button class="active" type="button" data-method="useful" title="Co jednotlivé zdroje poskytují">Zdroje</button>
+              <button type="button" data-method="gaps" title="Která data a ověření chybějí">Mezery</button>
+              <button type="button" data-method="scale" title="Jak postup rozšířit na více parcel">Škálování</button>
+            </div>
+            <ul class="method-list" id="methodList"></ul>
+          </section>
+
+          <section class="analysis-block glass">
+            <h2 data-icon="shield" data-help="Původ, role a důkazní význam každého externího nebo lokálního zdroje.">Audit zdrojů</h2>
+            <p class="section-description">Odkazy vedou na původní služby; lokální důkazy se otevírají pro aktivní parcelu.</p>
+            <div class="source-list" id="sourceList"></div>
+          </section>
+
+          <section class="analysis-block glass">
+            <h2 data-icon="layers" data-help="Přehled mapových podkladů a jejich role v analytickém rozhodnutí.">Mapové vrstvy</h2>
+            <p class="section-description">OpenStreetMap je orientační; CPX, ortofoto a KN tvoří důkazní kontext.</p>
+            <div class="source-list" id="layerList"></div>
+          </section>
+        </aside>
+      </section>
+    </main>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

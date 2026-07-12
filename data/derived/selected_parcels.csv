@@ -1,0 +1,6 @@
+case_id,zoning,label,national_ref,area_m2,land_type,land_use,reference_x_sjtsk,reference_y_sjtsk,selection_reason
+A,Kopidlno,653/22,669296-653/22,189522,ArableGround,,-681619.12,-1024554.71,large arable parcel for field-use verification
+B,Lázně Bělohrad,271/1,679330-271/1,103188,Grassland,,-654982.20,-1016813.26,large grassland parcel for meadow/pasture verification
+C,Kopidlno,676/1,669296-676/1,2010093,Forest,,-683262.18,-1024130.62,large forest parcel for woodland verification
+D,Kopidlno,1255,669296-1255,298355,WaterArea,Pond,-678554.86,-1023893.72,large pond parcel for water-area verification
+E,Jičín,1787/1,659541-1787/1,302006,OtherArea,RecreationArea,-670277.12,-1011139.31,large recreation/other area for mixed-use verification
