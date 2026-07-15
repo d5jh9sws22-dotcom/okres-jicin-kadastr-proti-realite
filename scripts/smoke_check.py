@@ -177,6 +177,10 @@ def main() -> None:
                 raise RuntimeError("mapové moduly rozhraní chybí")
             if "assessmentForm" not in index_html or "putJson" not in app_js or ".assessment-form" not in styles_css:
                 raise RuntimeError("panel analytika nebo jeho klientská logika chybí")
+            if "helpTooltip" not in index_html or "showHelpTooltip" not in app_js or "z-index: 2000" not in styles_css:
+                raise RuntimeError("viewport tooltip layer is incomplete")
+            if ".analysis-pane .training-base-grid" not in styles_css or "@media (min-width: 1181px)" not in styles_css:
+                raise RuntimeError("narrow analytics-column grid rules are incomplete")
             if "mlPredictionTable" not in index_html or "mlRunGrid" not in index_html or "atomSampleSummary" not in index_html:
                 raise RuntimeError("panel PyTorch v rozhraní chybí")
 

@@ -132,6 +132,7 @@ const els = {
   assessmentEnvironment: document.querySelector("#assessmentEnvironment"),
   assessmentGeometry: document.querySelector("#assessmentGeometry"),
   assessmentStatus: document.querySelector("#assessmentStatus"),
+  helpTooltip: document.querySelector("#helpTooltip"),
   toast: document.querySelector("#toast"),
 };
 
@@ -259,10 +260,48 @@ function decorateHelpTips(root = document) {
     button.className = "help-tip";
     button.textContent = "?";
     button.setAttribute("aria-label", `Nápověda: ${heading.dataset.help}`);
-    button.title = heading.dataset.help;
+    button.setAttribute("aria-describedby", "helpTooltip");
     button.dataset.tooltip = heading.dataset.help;
+    button.addEventListener("mouseenter", () => showHelpTooltip(button));
+    button.addEventListener("mouseleave", hideHelpTooltip);
+    button.addEventListener("focus", () => showHelpTooltip(button));
+    button.addEventListener("blur", hideHelpTooltip);
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (!els.helpTooltip.hidden && els.helpTooltip.dataset.anchor === button.dataset.tooltip) {
+        hideHelpTooltip();
+      } else {
+        showHelpTooltip(button);
+      }
+    });
     heading.append(button);
   });
+}
+
+function showHelpTooltip(button) {
+  els.helpTooltip.textContent = button.dataset.tooltip;
+  els.helpTooltip.dataset.anchor = button.dataset.tooltip;
+  els.helpTooltip.hidden = false;
+  els.helpTooltip.style.left = "0px";
+  els.helpTooltip.style.top = "0px";
+
+  const margin = 12;
+  const gap = 8;
+  const anchorRect = button.getBoundingClientRect();
+  const tooltipRect = els.helpTooltip.getBoundingClientRect();
+  const centeredLeft = anchorRect.left + anchorRect.width / 2 - tooltipRect.width / 2;
+  const left = Math.max(margin, Math.min(centeredLeft, window.innerWidth - tooltipRect.width - margin));
+  const below = anchorRect.bottom + gap;
+  const above = anchorRect.top - tooltipRect.height - gap;
+  const top = below + tooltipRect.height <= window.innerHeight - margin ? below : Math.max(margin, above);
+
+  els.helpTooltip.style.left = `${left}px`;
+  els.helpTooltip.style.top = `${top}px`;
+}
+
+function hideHelpTooltip() {
+  els.helpTooltip.hidden = true;
+  delete els.helpTooltip.dataset.anchor;
 }
 
 function activeParcel() {
@@ -914,6 +953,19 @@ function renderAll() {
 }
 
 function bindEvents() {
+  window.addEventListener("resize", hideHelpTooltip);
+  document.addEventListener("scroll", hideHelpTooltip, true);
+  document.addEventListener("pointerdown", (event) => {
+    if (!event.target.closest(".help-tip")) {
+      hideHelpTooltip();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideHelpTooltip();
+    }
+  });
+
   document.querySelectorAll(".image-tabs button").forEach((button) => {
     button.addEventListener("click", () => {
       state.activeImage = button.dataset.image;
