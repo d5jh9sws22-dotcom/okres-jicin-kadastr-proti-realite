@@ -1,6 +1,8 @@
+import contextlib
 import json
 import pathlib
 import shutil
+import sqlite3
 import sys
 import tempfile
 import threading
@@ -12,7 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 import app.server as app_server
-import scripts.fetch_wms_evidence  # noqa: F401
+from scripts import fetch_wms_evidence
 from scripts.build_geometry_overlays import evidence_bbox, find_parcel_rings
 
 
@@ -67,12 +69,47 @@ def delete_json(base_url: str, path: str) -> object:
         return json.loads(response.read().decode("utf-8"))
 
 
+class SmokeHandler(app_server.Handler):
+    def log_message(self, format: str, *args: object) -> None:
+        return
+
+
+def copy_database(source_path: pathlib.Path, target_path: pathlib.Path) -> None:
+    with sqlite3.connect(f"file:{source_path}?mode=ro", uri=True) as source:
+        with sqlite3.connect(target_path) as target:
+            source.backup(target)
+
+
+@contextlib.contextmanager
+def isolated_server(db_path: pathlib.Path, model_path: pathlib.Path, train_script: pathlib.Path):
+    original_paths = (app_server.DB_PATH, app_server.MODEL_PATH, app_server.TRAIN_SCRIPT)
+    server = None
+    thread = None
+    try:
+        app_server.DB_PATH = db_path
+        app_server.MODEL_PATH = model_path
+        app_server.TRAIN_SCRIPT = train_script
+        server = ThreadingHTTPServer(("127.0.0.1", 0), SmokeHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        if server is not None:
+            server.shutdown()
+            server.server_close()
+        if thread is not None:
+            thread.join(timeout=5)
+        app_server.DB_PATH, app_server.MODEL_PATH, app_server.TRAIN_SCRIPT = original_paths
+
+
 def main() -> None:
+    if not callable(fetch_wms_evidence.main):
+        raise RuntimeError("WMS evidence script is not importable")
+
     forest_bbox = evidence_bbox(find_parcel_rings("669296-676/1"))
     if forest_bbox[2] - forest_bbox[0] <= 1000:
         raise RuntimeError("large-parcel evidence bbox is still clipped to one kilometre")
 
-    original_paths = (app_server.DB_PATH, app_server.MODEL_PATH, app_server.TRAIN_SCRIPT)
     with tempfile.TemporaryDirectory(prefix="viagem-analytics-smoke-") as temp_dir:
         temp_root = pathlib.Path(temp_dir)
         temp_db = temp_root / "data" / "app.sqlite"
@@ -80,19 +117,11 @@ def main() -> None:
         temp_train_script = temp_root / "ml" / "train_pytorch.py"
         temp_db.parent.mkdir(parents=True)
         temp_model.parent.mkdir(parents=True)
-        shutil.copy2(app_server.DB_PATH, temp_db)
+        copy_database(app_server.DB_PATH, temp_db)
         shutil.copy2(app_server.MODEL_PATH, temp_model)
         shutil.copy2(app_server.TRAIN_SCRIPT, temp_train_script)
-        app_server.DB_PATH = temp_db
-        app_server.MODEL_PATH = temp_model
-        app_server.TRAIN_SCRIPT = temp_train_script
 
-        server = ThreadingHTTPServer(("127.0.0.1", 0), app_server.Handler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        base_url = f"http://127.0.0.1:{server.server_port}"
-
-        try:
+        with isolated_server(temp_db, temp_model, temp_train_script) as base_url:
             health = get_json(base_url, "/api/health")
             parcels = get_json(base_url, "/api/parcels")
             parcel = get_json(base_url, "/api/parcels/A")
@@ -185,10 +214,6 @@ def main() -> None:
                 raise RuntimeError("panel PyTorch v rozhraní chybí")
 
             print("smoke check passed")
-        finally:
-            server.shutdown()
-            server.server_close()
-            app_server.DB_PATH, app_server.MODEL_PATH, app_server.TRAIN_SCRIPT = original_paths
 
 
 if __name__ == "__main__":
