@@ -222,7 +222,6 @@ scripts/build_app_db.py               sestavení SQLite databáze
 scripts/smoke_check.py                izolovaný integrační test
 ml/train_pytorch.py                   trénování ParcelAtomMLP
 ml/parcel_atom_mlp.pt                 aktuální uložený model
-SPEC.md                               technická specifikace
 ```
 
 ## Omezení
